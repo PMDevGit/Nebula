@@ -1,0 +1,311 @@
+-- 🌌 NEBULA ADMIN PANEL (FINAL)
+-- Keybind T = Random Teleport
+-- Draggable UI
+-- Loading screen with fade
+-- Nebula style + safe animations
+
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+
+local player = Players.LocalPlayer
+
+-- cleanup
+pcall(function()
+    player.PlayerGui.NebulaAdmin:Destroy()
+end)
+
+-- GUI ROOT
+local gui = Instance.new("ScreenGui", player.PlayerGui)
+gui.Name = "NebulaAdmin"
+gui.ResetOnSpawn = false
+
+-- ================= LOADING SCREEN =================
+
+local loading = Instance.new("Frame", gui)
+loading.Size = UDim2.new(1,0,1,0)
+loading.BackgroundColor3 = Color3.fromRGB(10,10,20)
+loading.ZIndex = 50
+
+local loadText = Instance.new("TextLabel", loading)
+loadText.Size = UDim2.new(1,0,1,0)
+loadText.BackgroundTransparency = 1
+loadText.Text = "Loading Nebula Admin Panel…"
+loadText.Font = Enum.Font.GothamBold
+loadText.TextSize = 26
+loadText.TextColor3 = Color3.fromRGB(200,210,255)
+
+-- ================= MAIN PANEL =================
+
+local main = Instance.new("Frame", gui)
+main.Size = UDim2.new(0,600,0,400)
+main.Position = UDim2.new(0.5,-300,0.5,-200)
+main.BackgroundTransparency = 0.15
+main.BorderSizePixel = 0
+main.Visible = false
+Instance.new("UICorner", main).CornerRadius = UDim.new(0,22)
+
+-- Nebula gradient
+local grad = Instance.new("UIGradient", main)
+grad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(90,60,160)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(50,80,170)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(20,20,40))
+})
+grad.Rotation = 135
+
+-- Glow
+local stroke = Instance.new("UIStroke", main)
+stroke.Color = Color3.fromRGB(160,180,255)
+stroke.Transparency = 0.4
+stroke.Thickness = 2
+
+-- Title bar
+local title = Instance.new("TextLabel", main)
+title.Size = UDim2.new(1,0,0,42)
+title.BackgroundTransparency = 1
+title.Text = "NEBULA ADMIN PANEL  •  X = Minimize  •  T = Teleport"
+title.Font = Enum.Font.GothamBold
+title.TextSize = 20
+title.TextColor3 = Color3.fromRGB(235,240,255)
+title.TextStrokeTransparency = 0.6
+
+-- Container
+local container = Instance.new("Frame", main)
+container.Size = UDim2.new(1,-20,1,-60)
+container.Position = UDim2.new(0,10,0,50)
+container.BackgroundTransparency = 1
+
+local grid = Instance.new("UIGridLayout", container)
+grid.CellSize = UDim2.new(0,180,0,90)
+grid.CellPadding = UDim2.new(0,15,0,15)
+
+-- ================= HELPERS =================
+
+local function char()
+    return player.Character or player.CharacterAdded:Wait()
+end
+
+local function hum()
+    return char():WaitForChild("Humanoid")
+end
+
+-- ================= ACTIONS =================
+
+local states = {}
+local cons = {}
+
+-- Infinite Jump
+local function infiniteJump(on)
+    if on then
+        if cons.jump then return end
+        cons.jump = UIS.JumpRequest:Connect(function()
+            hum():ChangeState(Enum.HumanoidStateType.Jumping)
+        end)
+    elseif cons.jump then
+        cons.jump:Disconnect()
+        cons.jump = nil
+    end
+end
+
+-- Noclip
+local function noclip(on)
+    for _,p in pairs(char():GetDescendants()) do
+        if p:IsA("BasePart") then
+            p.CanCollide = not on
+        end
+    end
+end
+
+-- Fly (safe)
+local function fly(on)
+    local h = hum()
+    local hrp = char():WaitForChild("HumanoidRootPart")
+
+    if on then
+        h.PlatformStand = true
+        cons.fly = true
+        task.spawn(function()
+            while cons.fly do
+                local cam = workspace.CurrentCamera
+                local dir = Vector3.zero
+                if UIS:IsKeyDown(Enum.KeyCode.W) then dir += cam.CFrame.LookVector end
+                if UIS:IsKeyDown(Enum.KeyCode.S) then dir -= cam.CFrame.LookVector end
+                if UIS:IsKeyDown(Enum.KeyCode.A) then dir -= cam.CFrame.RightVector end
+                if UIS:IsKeyDown(Enum.KeyCode.D) then dir += cam.CFrame.RightVector end
+                if UIS:IsKeyDown(Enum.KeyCode.Space) then dir += Vector3.new(0,1,0) end
+                if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then dir -= Vector3.new(0,1,0) end
+                hrp.CFrame += dir * 1.1
+                task.wait()
+            end
+        end)
+    else
+        cons.fly = false
+        h.PlatformStand = false
+    end
+end
+
+-- Speed
+local function speed(on)
+    hum().WalkSpeed = on and 40 or 16
+end
+
+-- God Mode
+local function god(on)
+    local h = hum()
+    if on then
+        h.MaxHealth = 1e9
+        h.Health = 1e9
+    else
+        h.MaxHealth = 100
+        h.Health = 100
+    end
+end
+
+-- Random Teleport (used by button + keybind)
+local function randomTeleport()
+    local list = {}
+    for _,plr in pairs(Players:GetPlayers()) do
+        if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            table.insert(list, plr)
+        end
+    end
+    if #list > 0 then
+        local target = list[math.random(#list)]
+        char().HumanoidRootPart.CFrame =
+            target.Character.HumanoidRootPart.CFrame * CFrame.new(0,0,3)
+    end
+end
+
+local actions = {
+    infiniteJump,
+    noclip,
+    fly,
+    speed,
+    god,
+    function(on) if on then randomTeleport() end end
+}
+
+local labels = {
+    "Infinite Jump",
+    "Noclip",
+    "Fly",
+    "Speed Boost",
+    "God Mode",
+    "Random Teleport"
+}
+
+-- ================= BUTTONS =================
+
+local normal = Color3.fromRGB(70,80,130)
+local active = Color3.fromRGB(120,140,220)
+
+for i = 1,6 do
+    states[i] = false
+
+    local btn = Instance.new("TextButton", container)
+    btn.Text = labels[i].." [OFF]"
+    btn.Font = Enum.Font.GothamSemibold
+    btn.TextSize = 14
+    btn.TextColor3 = Color3.new(1,1,1)
+    btn.BackgroundColor3 = normal
+    btn.BackgroundTransparency = 0.15
+    btn.BorderSizePixel = 0
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0,14)
+
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.2), {
+            BackgroundColor3 = Color3.fromRGB(100,120,200)
+        }):Play()
+    end)
+
+    btn.MouseLeave:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.2), {
+            BackgroundColor3 = states[i] and active or normal
+        }):Play()
+    end)
+
+    btn.MouseButton1Click:Connect(function()
+        states[i] = not states[i]
+        btn.Text = labels[i]..(states[i] and " [ON]" or " [OFF]")
+        TweenService:Create(btn, TweenInfo.new(0.25), {
+            BackgroundColor3 = states[i] and active or normal
+        }):Play()
+        actions[i](states[i])
+    end)
+end
+
+-- ================= KEYBINDS =================
+
+UIS.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.KeyCode == Enum.KeyCode.T then
+        randomTeleport()
+    end
+end)
+
+-- ================= DRAGGABLE =================
+
+local dragging, dragStart, startPos
+
+title.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = main.Position
+    end
+end)
+
+UIS.InputChanged:Connect(function(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStart
+        main.Position = UDim2.new(
+            startPos.X.Scale, startPos.X.Offset + delta.X,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+UIS.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+    end
+end)
+
+-- ================= MINIMIZE =================
+
+local minimized = false
+local lastX = 0
+local fullSize = main.Size
+local fullPos = main.Position
+
+UIS.InputBegan:Connect(function(input, gp)
+    if gp or input.KeyCode ~= Enum.KeyCode.X then return end
+    local t = tick()
+    if t - lastX < 0.35 then
+        minimized = not minimized
+        container.Visible = not minimized
+
+        TweenService:Create(main, TweenInfo.new(0.35), {
+            Size = minimized and UDim2.new(0,260,0,42) or fullSize,
+            Position = minimized and UDim2.new(1,-270,1,-60) or fullPos
+        }):Play()
+    end
+    lastX = t
+end)
+
+-- ================= LOADING FADE =================
+
+task.delay(1, function()
+    main.Visible = true
+    TweenService:Create(loading, TweenInfo.new(0.6), {
+        BackgroundTransparency = 1
+    }):Play()
+    TweenService:Create(loadText, TweenInfo.new(0.6), {
+        TextTransparency = 1
+    }):Play()
+    task.wait(0.6)
+    loading:Destroy()
+end)
+
+print("🌌 Nebula Admin Panel fully loaded")
